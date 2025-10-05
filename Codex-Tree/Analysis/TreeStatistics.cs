@@ -33,7 +33,6 @@ public class TreeStatistics
         if (node.Depth > stats.MaxDepth)
         {
             stats.MaxDepth = node.Depth;
-            stats.DeepestClass = node.ClassInfo;
         }
 
         // Check for deep inheritance (3+ levels)
@@ -46,13 +45,12 @@ public class TreeStatistics
         if (!node.ClassInfo.IsNested)
         {
             var chainDepth = node.Depth + node.MaxDepthBelow();
-            if (chainDepth > stats.DeepestChainLength)
+            if (chainDepth > stats.DeepestChains.Count)
             {
-                stats.DeepestChainLength = chainDepth;
                 stats.DeepestChains.Clear();
                 stats.DeepestChains.Add(node.GetInheritanceChain());
             }
-            else if (chainDepth == stats.DeepestChainLength && stats.DeepestChainLength > 0)
+            else if (chainDepth == stats.DeepestChains.Count && stats.DeepestChains.Count > 0)
             {
                 // Add to the list if same length
                 stats.DeepestChains.Add(node.GetInheritanceChain());
@@ -80,9 +78,9 @@ public class TreeStatistics
     }
 
     /// <summary>
-    /// Render statistics panel
+    /// Build statistics grid
     /// </summary>
-    public void RenderStatistics(TreeStats stats)
+    public Grid BuildStatisticsGrid(TreeStats stats)
     {
         var grid = new Grid();
         grid.AddColumn();
@@ -92,43 +90,46 @@ public class TreeStatistics
         grid.AddRow("[bold]Abstract classes:[/]", $"{stats.AbstractClasses}");
         grid.AddRow("[bold]Max depth:[/]", $"{stats.MaxDepth} levels");
 
-        // Show deepest chain length and count
-        if (stats.DeepestChains.Count > 0)
-        {
-            var chainText = stats.DeepestChains.Count == 1
-                ? $"{stats.DeepestChainLength} levels (1 chain)"
-                : $"{stats.DeepestChainLength} levels ({stats.DeepestChains.Count} chains)";
-            grid.AddRow("[bold]Deepest chain:[/]", chainText);
-        }
-        else
-        {
-            grid.AddRow("[bold]Deepest chain:[/]", $"{stats.DeepestChainLength} levels");
-        }
-
-        if (stats.DeepestClass != null)
-        {
-            grid.AddRow("[bold]Deepest class:[/]", stats.DeepestClass.Name);
-        }
-
         if (stats.LargestClass != null)
         {
             grid.AddRow("[bold]Largest class:[/]", $"{stats.LargestClass.Name} ({stats.LargestClassLines} lines)");
+        }
+
+        // Add warnings
+        if (stats.DeepInheritanceClasses.Count > 0)
+        {
+            grid.AddEmptyRow();
+            grid.AddRow($"[yellow]Deep inheritance:[/]", $"[yellow]{stats.DeepInheritanceClasses.Count} classes (3+ levels)[/]");
         }
 
         var panel = new Panel(grid)
         {
             Header = new PanelHeader("Statistics", Justify.Left),
             Border = BoxBorder.Rounded,
-            BorderStyle = new Style(Color.Blue)
+            BorderStyle = new Style(Color.Blue),
+            Expand = false
         };
 
-        AnsiConsole.Write(panel);
+        var containerGrid = new Grid();
+        containerGrid.AddColumn();
+        containerGrid.AddRow(panel);
 
-        // Show warnings
+        return containerGrid;
+    }
+
+    /// <summary>
+    /// Render statistics panel
+    /// </summary>
+    public void RenderStatistics(TreeStats stats)
+    {
+        var grid = BuildStatisticsGrid(stats);
+        AnsiConsole.Write(grid);
+
+        // Show detailed warnings
         if (stats.DeepInheritanceClasses.Count > 0)
         {
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine($"[yellow]Deep inheritance (3+ levels): {stats.DeepInheritanceClasses.Count} classes[/]");
+            AnsiConsole.MarkupLine($"[yellow]Classes with deep inheritance (3+ levels):[/]");
 
             if (stats.DeepInheritanceClasses.Count <= 10)
             {
@@ -157,8 +158,6 @@ public class TreeStats
     public int TotalClasses { get; set; }
     public int AbstractClasses { get; set; }
     public int MaxDepth { get; set; }
-    public int DeepestChainLength { get; set; }
-    public ClassInfo? DeepestClass { get; set; }
     public ClassInfo? LargestClass { get; set; }
     public int LargestClassLines { get; set; }
     public List<List<InheritanceNode>> DeepestChains { get; set; } = new();
