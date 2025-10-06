@@ -29,20 +29,31 @@ public class DetailsPanel
 
         var classInfo = node.ClassInfo;
         var color = TreeLineBuilder.GetClassColor(classInfo);
-        var modifier = TreeLineBuilder.FormatModifier(classInfo.IsAbstract);
 
         // Namespace (dimmed, above name)
         if (!string.IsNullOrEmpty(classInfo.Namespace))
             grid.AddRow($"[dim]{classInfo.Namespace}[/]");
 
-        // Name
-        grid.AddRow($"[bold][{color}]{classInfo.Name}[/]{modifier}[/]");
+        // Name with modifiers as badges
+        var badges = BuildModifierBadges(classInfo);
+        grid.AddRow($"[bold][{color}]{classInfo.Name}[/][/]{badges}");
         grid.AddEmptyRow();
+
+        // Depth in hierarchy
+        if (node.Depth > 0)
+        {
+            grid.AddRow($"[bold]Depth:[/] {node.Depth}");
+        }
 
         // Base class
         if (!string.IsNullOrEmpty(classInfo.BaseClass))
         {
             grid.AddRow($"[bold]Base:[/] {classInfo.BaseClass}");
+        }
+
+        // Add empty row after depth/base section if either exists
+        if (node.Depth > 0 || !string.IsNullOrEmpty(classInfo.BaseClass))
+        {
             grid.AddEmptyRow();
         }
 
@@ -58,10 +69,14 @@ public class DetailsPanel
             grid.AddEmptyRow();
         }
 
-        // Subtree
+        // Subtree with counts
         if (node.Children.Count > 0 || node.NestedClasses.Count > 0)
         {
-            grid.AddRow("[bold]Subtree:[/]");
+            var totalDescendants = CalculateTotalDescendants(node);
+            var directChildren = node.Children.Count;
+            var nestedClasses = node.NestedClasses.Count;
+
+            grid.AddRow($"[bold]Subtree:[/] {totalDescendants} total ({directChildren} children, {nestedClasses} nested)");
             var subtreeMarkup = BuildSubtreeMarkup(node);
             grid.AddRow(subtreeMarkup);
             grid.AddEmptyRow();
@@ -144,6 +159,43 @@ public class DetailsPanel
             var nestedTreeNode = parentTree.AddNode(label);
             BuildSubtreeRecursive(nestedTreeNode, nested);
         }
+    }
+
+    /// <summary>
+    /// Build modifier badges for class type
+    /// </summary>
+    private static string BuildModifierBadges(ClassInfo classInfo)
+    {
+        var badges = new List<string>();
+
+        if (classInfo.IsAbstract)
+            badges.Add("[black on yellow] ABSTRACT [/]");
+        if (classInfo.IsSealed)
+            badges.Add("[black on blue] SEALED [/]");
+        if (classInfo.IsStatic)
+            badges.Add("[black on cyan] STATIC [/]");
+
+        return badges.Count > 0 ? " " + string.Join(" ", badges) : "";
+    }
+
+    /// <summary>
+    /// Calculate total descendants recursively (all children and nested classes)
+    /// </summary>
+    private static int CalculateTotalDescendants(InheritanceNode node)
+    {
+        int count = node.Children.Count + node.NestedClasses.Count;
+
+        foreach (var child in node.Children)
+        {
+            count += CalculateTotalDescendants(child);
+        }
+
+        foreach (var nested in node.NestedClasses)
+        {
+            count += CalculateTotalDescendants(nested);
+        }
+
+        return count;
     }
 
     /// <summary>

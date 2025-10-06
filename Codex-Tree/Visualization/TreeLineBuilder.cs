@@ -11,13 +11,14 @@ public class TreeLineBuilder
     /// <summary>
     /// Build a Spectre.Console Tree and track nodes for navigation
     /// </summary>
-    public Tree BuildSpectreTree(InheritanceNode node, List<InheritanceNode> nodeList)
+    public Tree BuildSpectreTree(InheritanceNode node, List<InheritanceNode> nodeList, InheritanceNode? selectedNode = null)
     {
-        var rootLabel = BuildNodeLabel(node);
+        var isSelected = node == selectedNode;
+        var rootLabel = BuildNodeLabel(node, false, isSelected);
         var tree = new Tree(rootLabel);
         nodeList.Add(node);
 
-        AddChildrenToTree(tree, node, nodeList);
+        AddChildrenToTree(tree, node, nodeList, selectedNode);
 
         return tree;
     }
@@ -25,39 +26,40 @@ public class TreeLineBuilder
     /// <summary>
     /// Add children recursively to a tree node
     /// </summary>
-    private void AddChildrenToTree(IHasTreeNodes parentTree, InheritanceNode parentNode, List<InheritanceNode> nodeList)
+    private void AddChildrenToTree(IHasTreeNodes parentTree, InheritanceNode parentNode, List<InheritanceNode> nodeList, InheritanceNode? selectedNode = null)
     {
         var allChildren = CombineChildren(parentNode);
 
         foreach (var (child, isNested) in allChildren)
         {
-            var childLabel = BuildNodeLabel(child, isNested);
+            var isSelected = child == selectedNode;
+            var childLabel = BuildNodeLabel(child, isNested, isSelected);
             var childTreeNode = parentTree.AddNode(childLabel);
             nodeList.Add(child);
 
-            if (isNested)
-            {
-                // Add nested children recursively
-                AddChildrenToTree(childTreeNode, child, nodeList);
-            }
-            else
-            {
-                // Add inherited children recursively
-                AddChildrenToTree(childTreeNode, child, nodeList);
-            }
+            // Add children recursively
+            AddChildrenToTree(childTreeNode, child, nodeList, selectedNode);
         }
     }
 
     /// <summary>
     /// Build the label markup for a node
     /// </summary>
-    private static string BuildNodeLabel(InheritanceNode node, bool isNested = false)
+    private static string BuildNodeLabel(InheritanceNode node, bool isNested = false, bool isSelected = false)
     {
         var color = GetClassColor(node.ClassInfo);
-        var modifier = FormatModifier(node.ClassInfo.IsAbstract);
+        var badges = BuildModifierBadges(node.ClassInfo);
         var nestedIndicator = FormatNestedIndicator(isNested);
 
-        return $"[{color}]{node.ClassInfo.Name}[/]{modifier}{nestedIndicator}";
+        var label = $"[[{color}]]{node.ClassInfo.Name}[[/]]{badges}{nestedIndicator}";
+
+        // Wrap in selection styling if selected
+        if (isSelected)
+        {
+            label = $"[[black on white]]{node.ClassInfo.Name}{nestedIndicator}[[/]]";
+        }
+
+        return label;
     }
 
     private static List<(InheritanceNode node, bool isNested)> CombineChildren(InheritanceNode node)
@@ -85,7 +87,24 @@ public class TreeLineBuilder
     }
 
     /// <summary>
-    /// Format modifier text for abstract classes
+    /// Build modifier badges for class type
+    /// </summary>
+    private static string BuildModifierBadges(ClassInfo classInfo)
+    {
+        var badges = new List<string>();
+
+        if (classInfo.IsAbstract)
+            badges.Add("[[black on yellow]] A [[/]]");
+        if (classInfo.IsSealed)
+            badges.Add("[[black on blue]] S [[/]]");
+        if (classInfo.IsStatic)
+            badges.Add("[[black on cyan]] ST [[/]]");
+
+        return badges.Count > 0 ? " " + string.Join(" ", badges) : "";
+    }
+
+    /// <summary>
+    /// Format modifier text for abstract classes (kept for backwards compatibility)
     /// </summary>
     public static string FormatModifier(bool isAbstract) =>
         isAbstract ? " (abstract)" : "";
@@ -94,5 +113,5 @@ public class TreeLineBuilder
     /// Format nested indicator text
     /// </summary>
     public static string FormatNestedIndicator(bool isNested) =>
-        isNested ? "[dim] (nested)[/]" : "";
+        isNested ? "[[dim]] (nested)[[/]]" : "";
 }

@@ -116,8 +116,10 @@ public class TreeRenderer
             {
                 if (!string.IsNullOrWhiteSpace(line))
                 {
-                    lines.Add(line);
-                    var plainText = MarkupRegex.Replace(line, "");
+                    // Unescape markup that was escaped for NoColors rendering
+                    var unescapedLine = line.Replace("[[", "[").Replace("]]", "]");
+                    lines.Add(unescapedLine);
+                    var plainText = MarkupRegex.Replace(unescapedLine, "");
                     maxTreeWidth = Math.Max(maxTreeWidth, plainText.Length);
                 }
             }
@@ -171,7 +173,7 @@ public class TreeRenderer
 
     private Table CreateTableWithDetails(string title, int maxTreeWidth, StringBuilder treeText, InheritanceNode node)
     {
-        var table = CreateBaseTable(title, "↑/↓ navigate, Enter to toggle preview, Q to quit [green](Details)[/]");
+        var table = CreateBaseTable(title, "Up/Down keys to navigate, Enter to toggle preview, Q to quit [green](Details)[/]");
         var detailsGrid = _detailsPanel.BuildDetails(node);
 
         table.AddColumn(new TableColumn("[green]Inheritance Tree[/]").Width(maxTreeWidth).NoWrap());
@@ -183,7 +185,7 @@ public class TreeRenderer
 
     private Table CreateTableWithPreview(string title, int maxTreeWidth, StringBuilder treeText, InheritanceNode node, int previewScrollOffset)
     {
-        var table = CreateBaseTable(title, "↑/↓ scroll preview, Enter to toggle details, Q to quit [yellow](Preview)[/]");
+        var table = CreateBaseTable(title, "Up/Down keys to scroll preview, Enter to toggle details, Q to quit [yellow](Preview)[/]");
         var previewText = _filePreview.BuildPreview(node, previewScrollOffset);
 
         table.AddColumn(new TableColumn("[green]Inheritance Tree[/]").Width(maxTreeWidth).NoWrap());

@@ -95,3 +95,4 @@ Program.cs orchestrates:
 - **Node list synchronization**: When building tree lines, maintain parallel List<InheritanceNode> that maps line indices to nodes for details panel
 - **Viewport management**: Track scrollOffset to keep selectedIndex visible within ViewportHeight (16 lines)
 - **Path resolution**: Display relative paths from base directory with ".../" prefix for cleaner UI
+- There is no need for you to run build, I will run it when testing anyway
