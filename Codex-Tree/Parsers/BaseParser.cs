@@ -16,7 +16,8 @@ public abstract class BaseParser
         string[] extensions,
         string[] excludeDirs,
         Func<string, List<T>> parseFileFunc,
-        bool recursive = true)
+        bool recursive = true,
+        Action<int, int>? progressCallback = null)
     {
         var results = new List<T>();
         var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
@@ -30,15 +31,22 @@ public abstract class BaseParser
         // Filter out excluded directories
         files = files.Where(f => !excludeDirs.Any(dir => f.Contains(dir))).ToList();
 
+        var totalFiles = files.Count;
+        var processedFiles = 0;
+
         foreach (var file in files)
         {
             try
             {
                 results.AddRange(parseFileFunc(file));
+                processedFiles++;
+                progressCallback?.Invoke(processedFiles, totalFiles);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error parsing {file}: {ex.Message}");
+                processedFiles++;
+                progressCallback?.Invoke(processedFiles, totalFiles);
             }
         }
 

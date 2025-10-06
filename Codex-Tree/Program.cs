@@ -85,7 +85,10 @@ AnsiConsole.Status()
         ctx.Spinner(Spinner.Known.Dots);
         ctx.SpinnerStyle(Style.Parse("green"));
 
-        var classes = parser.ParseDirectory(directory);
+        var classes = parser.ParseDirectory(directory, recursive: true, progressCallback: (current, total) =>
+        {
+            ctx.Status($"Parsing {selectedLanguage} files... ({current}/{total})");
+        });
 
         if (classes.Count == 0)
         {

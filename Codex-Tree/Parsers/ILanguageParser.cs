@@ -12,8 +12,9 @@ public interface ILanguageParser
     /// </summary>
     /// <param name="directoryPath">Directory to parse</param>
     /// <param name="recursive">Whether to search subdirectories</param>
+    /// <param name="progressCallback">Optional callback for reporting progress (current, total)</param>
     /// <returns>List of parsed class information</returns>
-    List<ClassInfo> ParseDirectory(string directoryPath, bool recursive = true);
+    List<ClassInfo> ParseDirectory(string directoryPath, bool recursive = true, Action<int, int>? progressCallback = null);
 
     /// <summary>
     /// Parse a single file

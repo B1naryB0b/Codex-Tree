@@ -24,14 +24,15 @@ public class CSharpParser : BaseParser, ILanguageParser
     /// <summary>
     /// Parse all C# files in a directory
     /// </summary>
-    public List<ClassInfo> ParseDirectory(string directoryPath, bool recursive = true)
+    public List<ClassInfo> ParseDirectory(string directoryPath, bool recursive = true, Action<int, int>? progressCallback = null)
     {
         return ParseDirectoryWithExtensions(
             directoryPath,
             FileExtensions,
             new[] { @"\obj\", @"\bin\" },
             ParseFile,
-            recursive);
+            recursive,
+            progressCallback);
     }
 
     /// <summary>

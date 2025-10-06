@@ -22,7 +22,7 @@ public class PythonParser : ILanguageParser
     /// <summary>
     /// Parse all Python files in a directory
     /// </summary>
-    public List<ClassInfo> ParseDirectory(string directoryPath, bool recursive = true)
+    public List<ClassInfo> ParseDirectory(string directoryPath, bool recursive = true, Action<int, int>? progressCallback = null)
     {
         var classes = new List<ClassInfo>();
         var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
@@ -33,15 +33,22 @@ public class PythonParser : ILanguageParser
                        !f.Contains("\\build\\") && !f.Contains("\\dist\\"))
             .ToList();
 
+        var totalFiles = pyFiles.Count;
+        var processedFiles = 0;
+
         foreach (var file in pyFiles)
         {
             try
             {
                 classes.AddRange(ParseFile(file));
+                processedFiles++;
+                progressCallback?.Invoke(processedFiles, totalFiles);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error parsing {file}: {ex.Message}");
+                processedFiles++;
+                progressCallback?.Invoke(processedFiles, totalFiles);
             }
         }
 
