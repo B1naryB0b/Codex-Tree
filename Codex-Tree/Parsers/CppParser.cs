@@ -4,35 +4,44 @@ using Codex_Tree.Models;
 namespace Codex_Tree.Parsers;
 
 /// <summary>
-/// Parses C# files to extract class information using regex patterns
+/// Parses C++ files to extract class information using regex patterns
 /// </summary>
-public class CSharpParser : ILanguageParser
+public class CppParser : ILanguageParser
 {
-    public string Language => "C#";
-    public string[] FileExtensions => new[] { ".cs" };
+    public string Language => "C++";
+    public string[] FileExtensions => new[] { ".cpp", ".h", ".hpp", ".cc", ".cxx" };
 
-    private static readonly Regex NamespaceRegex = new(@"namespace\s+([\w\.]+)", RegexOptions.Compiled);
+    private static readonly Regex NamespaceRegex = new(@"namespace\s+(\w+)", RegexOptions.Compiled);
 
     private static readonly Regex ClassRegex = new(
-        @"(?<modifiers>(?:public|private|protected|internal|abstract|sealed|static)\s+)*class\s+(?<name>\w+)(?:\s*:\s*(?<inheritance>[\w\s,\.]+))?",
+        @"(?<modifiers>(?:class|struct))\s+(?<name>\w+)(?:\s*:\s*(?:public|private|protected)?\s*(?<inheritance>[\w\s,:<>]+))?\s*\{",
         RegexOptions.Compiled | RegexOptions.Multiline);
 
     private static readonly Regex MethodRegex = new(
-        @"(?:public|private|protected|internal|static|virtual|override|async)\s+(?:\w+\s+)+\w+\s*\(",
+        @"(?:public|private|protected)?\s*(?:virtual|static|inline|constexpr)?\s*[\w<>:\*&]+\s+(\w+)\s*\([^)]*\)\s*(?:const)?\s*(?:override)?\s*(?:final)?\s*[{;]",
         RegexOptions.Compiled | RegexOptions.Multiline);
 
     /// <summary>
-    /// Parse all C# files in a directory
+    /// Parse all C++ files in a directory
     /// </summary>
     public List<ClassInfo> ParseDirectory(string directoryPath, bool recursive = true)
     {
         var classes = new List<ClassInfo>();
         var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
 
-        var csFiles = Directory.GetFiles(directoryPath, "*.cs", searchOption)
-            .Where(f => !f.Contains("\\obj\\") && !f.Contains("\\bin\\"));
+        var cppFiles = new List<string>();
+        foreach (var ext in FileExtensions)
+        {
+            cppFiles.AddRange(Directory.GetFiles(directoryPath, $"*{ext}", searchOption));
+        }
 
-        foreach (var file in csFiles)
+        cppFiles = cppFiles
+            .Where(f => !f.Contains("\\obj\\") && !f.Contains("\\bin\\") &&
+                       !f.Contains("\\build\\") && !f.Contains("\\Debug\\") &&
+                       !f.Contains("\\Release\\"))
+            .ToList();
+
+        foreach (var file in cppFiles)
         {
             try
             {
@@ -48,26 +57,26 @@ public class CSharpParser : ILanguageParser
     }
 
     /// <summary>
-    /// Parse a single C# file
+    /// Parse a single C++ file
     /// </summary>
     public List<ClassInfo> ParseFile(string filePath)
     {
         var content = File.ReadAllText(filePath);
         var classes = new List<ClassInfo>();
 
-        // Extract namespace
+        // Remove preprocessor directives and comments for cleaner parsing
+        content = RemovePreprocessorDirectives(content);
+        content = RemoveComments(content);
+
+        // Extract namespace (simplified - only handles first namespace)
         var namespaceMatch = NamespaceRegex.Match(content);
         var defaultNamespace = namespaceMatch.Success ? namespaceMatch.Groups[1].Value : null;
 
-        // Find all classes
+        // Find all classes/structs
         var classMatches = ClassRegex.Matches(content);
 
         foreach (Match match in classMatches)
         {
-            // Skip if this match is inside a comment
-            if (IsInComment(content, match.Index))
-                continue;
-
             var classInfo = new ClassInfo
             {
                 Name = match.Groups["name"].Value,
@@ -76,11 +85,9 @@ public class CSharpParser : ILanguageParser
                 LineCount = CountLinesInClass(content, match.Index)
             };
 
-            // Parse modifiers
-            var modifiers = match.Groups["modifiers"].Value;
-            classInfo.IsAbstract = modifiers.Contains("abstract");
-            classInfo.IsSealed = modifiers.Contains("sealed");
-            classInfo.IsStatic = modifiers.Contains("static");
+            // In C++, struct is like a public class
+            var modifier = match.Groups["modifiers"].Value;
+            classInfo.IsStatic = false; // C++ doesn't have static classes like C#
 
             // Detect if this is a nested class
             classInfo.ParentClassName = FindParentClass(content, match.Index, classMatches);
@@ -91,21 +98,19 @@ public class CSharpParser : ILanguageParser
                 var inheritance = match.Groups["inheritance"].Value
                     .Split(',')
                     .Select(s => s.Trim())
+                    .Select(s => Regex.Replace(s, @"(public|private|protected)\s+", "")) // Remove access specifiers
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
                     .ToList();
 
-                // First item is typically the base class, rest are interfaces
+                // C++ doesn't distinguish between classes and interfaces like C#
+                // First item is base class, rest are additional bases (multiple inheritance)
                 if (inheritance.Count > 0)
                 {
-                    var first = inheritance[0];
-                    // Simple heuristic: interfaces often start with 'I' or contain known interface patterns
-                    if (first.StartsWith("I") && first.Length > 1 && char.IsUpper(first[1]))
+                    classInfo.BaseClass = inheritance[0].Trim();
+                    // Additional base classes go to interfaces list for compatibility
+                    if (inheritance.Count > 1)
                     {
-                        classInfo.Interfaces.AddRange(inheritance);
-                    }
-                    else
-                    {
-                        classInfo.BaseClass = first;
-                        classInfo.Interfaces.AddRange(inheritance.Skip(1));
+                        classInfo.Interfaces.AddRange(inheritance.Skip(1).Select(s => s.Trim()));
                     }
                 }
             }
@@ -120,34 +125,25 @@ public class CSharpParser : ILanguageParser
     }
 
     /// <summary>
-    /// Check if a position in the content is inside a comment
+    /// Remove single-line and multi-line comments
     /// </summary>
-    private bool IsInComment(string content, int position)
+    private string RemoveComments(string content)
     {
-        // Find the start of the line containing this position
-        var lineStart = content.LastIndexOf('\n', position) + 1;
-        var lineContent = content.Substring(lineStart, position - lineStart);
+        // Remove multi-line comments /* */
+        content = Regex.Replace(content, @"/\*.*?\*/", "", RegexOptions.Singleline);
 
-        // Check for single-line comment (// or ///)
-        if (lineContent.Contains("//"))
-        {
-            var commentStart = lineContent.IndexOf("//");
-            // If the match position is after the //, it's in a comment
-            if (position - lineStart > commentStart)
-                return true;
-        }
+        // Remove single-line comments //
+        content = Regex.Replace(content, @"//.*?$", "", RegexOptions.Multiline);
 
-        // Check for multi-line comment (/* */)
-        var lastBlockCommentStart = content.LastIndexOf("/*", position);
-        if (lastBlockCommentStart != -1)
-        {
-            var lastBlockCommentEnd = content.LastIndexOf("*/", position);
-            // If we found a /* before this position and no */ between them, we're in a comment
-            if (lastBlockCommentEnd < lastBlockCommentStart)
-                return true;
-        }
+        return content;
+    }
 
-        return false;
+    /// <summary>
+    /// Remove preprocessor directives (#include, #define, etc.)
+    /// </summary>
+    private string RemovePreprocessorDirectives(string content)
+    {
+        return Regex.Replace(content, @"^\s*#.*?$", "", RegexOptions.Multiline);
     }
 
     /// <summary>
@@ -221,7 +217,7 @@ public class CSharpParser : ILanguageParser
     /// </summary>
     private int CountMethodsInClass(string content, int classStartIndex)
     {
-        // Find the class body (simplified - counts methods until next class or end)
+        // Find the class body
         var remainingContent = content.Substring(classStartIndex);
         var braceCount = 0;
         var inClass = false;
@@ -245,7 +241,23 @@ public class CSharpParser : ILanguageParser
                 classBody.Append(ch);
         }
 
-        return MethodRegex.Matches(classBody.ToString()).Count;
+        var bodyText = classBody.ToString();
+
+        // Filter out constructors, destructors, and non-method declarations
+        var methodMatches = MethodRegex.Matches(bodyText);
+        int count = 0;
+
+        foreach (Match match in methodMatches)
+        {
+            var methodName = match.Groups[1].Value;
+            // Skip constructors and destructors (basic heuristic)
+            if (!methodName.StartsWith("~") && methodName != "operator")
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     /// <summary>

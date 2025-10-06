@@ -7,10 +7,11 @@ using Codex_Tree.UI;
 using Codex_Tree.Visualization;
 using Spectre.Console;
 
+// Try different built-in fonts
 AnsiConsole.Write(
     new FigletText("Codex Tree")
         .Centered()
-        .Color(Color.Green));
+        .Color(Color.White));
 
 AnsiConsole.WriteLine();
 
@@ -28,24 +29,67 @@ AnsiConsole.Clear();
 AnsiConsole.Write(
     new FigletText("Codex Tree")
         .Centered()
-        .Color(Color.Green));
+        .Color(Color.White));
 AnsiConsole.WriteLine();
+
+// Analyze directory for languages
+var languageManager = new LanguageManager();
+Dictionary<string, int>? languageStats = null;
+
+AnsiConsole.Status()
+    .Start("Analyzing directory...", ctx =>
+    {
+        ctx.Spinner(Spinner.Known.Dots);
+        ctx.SpinnerStyle(Style.Parse("cyan"));
+
+        languageStats = languageManager.AnalyzeDirectoryStats(directory);
+    });
+
+// Clear and show language selection
+AnsiConsole.Clear();
+AnsiConsole.Write(
+    new FigletText("Codex Tree")
+        .Centered()
+        .Color(Color.White));
+AnsiConsole.WriteLine();
+
+var selectedLanguage = languageManager.PromptLanguageSelection(languageStats!);
+
+if (string.IsNullOrEmpty(selectedLanguage))
+{
+    AnsiConsole.MarkupLine("[yellow]No language selected. Exiting...[/]");
+    return;
+}
+
+AnsiConsole.Clear();
+AnsiConsole.Write(
+    new FigletText("Codex Tree")
+        .Centered()
+        .Color(Color.White));
+AnsiConsole.WriteLine();
+
+// Get parser for selected language
+var parser = ParserFactory.GetParser(selectedLanguage);
+if (parser == null)
+{
+    AnsiConsole.MarkupLine($"[red]No parser available for {selectedLanguage}![/]");
+    return;
+}
 
 // Parse the directory
 List<InheritanceNode>? roots = null;
 
 AnsiConsole.Status()
-    .Start("Parsing C# files...", ctx =>
+    .Start($"Parsing {selectedLanguage} files...", ctx =>
     {
         ctx.Spinner(Spinner.Known.Dots);
         ctx.SpinnerStyle(Style.Parse("green"));
 
-        var parser = new CSharpParser();
         var classes = parser.ParseDirectory(directory);
 
         if (classes.Count == 0)
         {
-            AnsiConsole.MarkupLine("[yellow]No C# classes found in the directory![/]");
+            AnsiConsole.MarkupLine($"[yellow]No {selectedLanguage} classes found in the directory![/]");
             return;
         }
 
@@ -74,7 +118,7 @@ AnsiConsole.Clear();
 AnsiConsole.Write(
     new FigletText("Codex Tree")
         .Centered()
-        .Color(Color.Green));
+        .Color(Color.White));
 AnsiConsole.WriteLine();
 
 var renderer = new TreeRenderer();
