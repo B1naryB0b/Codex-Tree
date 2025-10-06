@@ -91,7 +91,9 @@ public class TreeRenderer
     private static List<string> RenderTreesToLines(List<Tree> trees, out int maxTreeWidth)
     {
         var lines = new List<string>();
-        maxTreeWidth = 0;
+        // Minimum width to fit "Inheritance Tree" header without wrapping
+        const int minTreeWidth = 17;
+        maxTreeWidth = minTreeWidth;
 
         foreach (var tree in trees)
         {

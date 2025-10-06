@@ -12,9 +12,9 @@ public static class SyntaxHighlighterFactory
         { ".h", new CppHighlighter() },
         { ".hpp", new CppHighlighter() },
         { ".cc", new CppHighlighter() },
-        { ".cxx", new CppHighlighter() }
+        { ".cxx", new CppHighlighter() },
+        { ".py", new PythonHighlighter() }
         // Add more highlighters here as they're implemented:
-        // { ".py", new PythonHighlighter() },
         // { ".js", new JavaScriptHighlighter() },
         // { ".ts", new TypeScriptHighlighter() },
     };

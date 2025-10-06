@@ -8,9 +8,9 @@ public static class ParserFactory
     private static readonly Dictionary<string, ILanguageParser> _parsers = new()
     {
         { "C#", new CSharpParser() },
-        { "C++", new CppParser() }
+        { "C++", new CppParser() },
+        { "Python", new PythonParser() }
         // Add more parsers here as they're implemented:
-        // { "Python", new PythonParser() },
         // { "JavaScript", new JavaScriptParser() },
         // { "TypeScript", new TypeScriptParser() },
     };

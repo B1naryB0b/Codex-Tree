@@ -54,6 +54,9 @@ public class FilePreview
                 var lineNumber = $"[dim]{(i + 1),4}[/]";
                 var content = lines[i];
 
+                // Replace tabs with spaces first (prevents table formatting issues)
+                content = content.Replace("\t", "    ");
+
                 // Truncate line if it exceeds max width (before highlighting to get accurate length)
                 if (content.Length > MaxWidth)
                 {

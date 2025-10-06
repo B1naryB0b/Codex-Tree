@@ -6,7 +6,7 @@ namespace Codex_Tree.Parsers;
 /// <summary>
 /// Parses C# files to extract class information using regex patterns
 /// </summary>
-public class CSharpParser : ILanguageParser
+public class CSharpParser : BaseParser, ILanguageParser
 {
     public string Language => "C#";
     public string[] FileExtensions => new[] { ".cs" };
@@ -26,25 +26,12 @@ public class CSharpParser : ILanguageParser
     /// </summary>
     public List<ClassInfo> ParseDirectory(string directoryPath, bool recursive = true)
     {
-        var classes = new List<ClassInfo>();
-        var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
-
-        var csFiles = Directory.GetFiles(directoryPath, "*.cs", searchOption)
-            .Where(f => !f.Contains("\\obj\\") && !f.Contains("\\bin\\"));
-
-        foreach (var file in csFiles)
-        {
-            try
-            {
-                classes.AddRange(ParseFile(file));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error parsing {file}: {ex.Message}");
-            }
-        }
-
-        return classes;
+        return ParseDirectoryWithExtensions(
+            directoryPath,
+            FileExtensions,
+            new[] { @"\obj\", @"\bin\" },
+            ParseFile,
+            recursive);
     }
 
     /// <summary>
@@ -73,7 +60,7 @@ public class CSharpParser : ILanguageParser
                 Name = match.Groups["name"].Value,
                 Namespace = defaultNamespace,
                 FilePath = filePath,
-                LineCount = CountLinesInClass(content, match.Index)
+                LineCount = CountLinesInClassBraceBased(content, match.Index)
             };
 
             // Parse modifiers
@@ -83,7 +70,7 @@ public class CSharpParser : ILanguageParser
             classInfo.IsStatic = modifiers.Contains("static");
 
             // Detect if this is a nested class
-            classInfo.ParentClassName = FindParentClass(content, match.Index, classMatches);
+            classInfo.ParentClassName = FindParentClassBraceBased(content, match.Index, classMatches);
 
             // Parse inheritance
             if (match.Groups["inheritance"].Success)
@@ -151,131 +138,11 @@ public class CSharpParser : ILanguageParser
     }
 
     /// <summary>
-    /// Find the parent class if this class is nested inside another
-    /// </summary>
-    private string? FindParentClass(string content, int classStartIndex, MatchCollection allMatches)
-    {
-        // Count braces backwards from this class to see if we're inside another class
-        var precedingContent = content.Substring(0, classStartIndex);
-        var braceDepth = 0;
-
-        // Count open braces from start to this class
-        foreach (var ch in precedingContent)
-        {
-            if (ch == '{') braceDepth++;
-            else if (ch == '}') braceDepth--;
-        }
-
-        // If braceDepth > 0, we might be inside another class
-        if (braceDepth > 0)
-        {
-            // Find the most recent class definition before this one
-            foreach (Match potentialParent in allMatches)
-            {
-                if (potentialParent.Index < classStartIndex)
-                {
-                    var parentEnd = FindClassEndPosition(content, potentialParent.Index);
-                    // Check if current class is within the parent's braces
-                    if (parentEnd > classStartIndex)
-                    {
-                        return potentialParent.Groups["name"].Value;
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Find the end position of a class (closing brace)
-    /// </summary>
-    private int FindClassEndPosition(string content, int classStartIndex)
-    {
-        var remainingContent = content.Substring(classStartIndex);
-        var braceCount = 0;
-        var inClass = false;
-        var position = classStartIndex;
-
-        foreach (var ch in remainingContent)
-        {
-            if (ch == '{')
-            {
-                braceCount++;
-                inClass = true;
-            }
-            else if (ch == '}')
-            {
-                braceCount--;
-                if (braceCount == 0 && inClass)
-                    return position;
-            }
-            position++;
-        }
-
-        return position;
-    }
-
-    /// <summary>
     /// Count methods within a class definition
     /// </summary>
     private int CountMethodsInClass(string content, int classStartIndex)
     {
-        // Find the class body (simplified - counts methods until next class or end)
-        var remainingContent = content.Substring(classStartIndex);
-        var braceCount = 0;
-        var inClass = false;
-        var classBody = new System.Text.StringBuilder();
-
-        foreach (var ch in remainingContent)
-        {
-            if (ch == '{')
-            {
-                braceCount++;
-                inClass = true;
-            }
-            else if (ch == '}')
-            {
-                braceCount--;
-                if (braceCount == 0 && inClass)
-                    break;
-            }
-
-            if (inClass)
-                classBody.Append(ch);
-        }
-
-        return MethodRegex.Matches(classBody.ToString()).Count;
-    }
-
-    /// <summary>
-    /// Estimate line count for a class
-    /// </summary>
-    private int CountLinesInClass(string content, int classStartIndex)
-    {
-        var remainingContent = content.Substring(classStartIndex);
-        var braceCount = 0;
-        var inClass = false;
-        var lineCount = 0;
-
-        foreach (var ch in remainingContent)
-        {
-            if (ch == '{')
-            {
-                braceCount++;
-                inClass = true;
-            }
-            else if (ch == '}')
-            {
-                braceCount--;
-                if (braceCount == 0 && inClass)
-                    break;
-            }
-
-            if (ch == '\n' && inClass)
-                lineCount++;
-        }
-
-        return lineCount;
+        var classBody = ExtractClassBodyBraceBased(content, classStartIndex);
+        return MethodRegex.Matches(classBody).Count;
     }
 }

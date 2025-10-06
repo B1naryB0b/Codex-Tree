@@ -1,5 +1,6 @@
 using Codex_Tree.Models;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 
 namespace Codex_Tree.Visualization;
 
@@ -8,13 +9,14 @@ namespace Codex_Tree.Visualization;
 /// </summary>
 public class DetailsPanel
 {
-    private const int MaxSubtreeDepth = 12;
     private const int MaxPathWidth = 80;
     private readonly string? _baseDirectory;
+    private readonly TreeLineBuilder _treeBuilder;
 
     public DetailsPanel(string? baseDirectory = null)
     {
         _baseDirectory = baseDirectory;
+        _treeBuilder = new TreeLineBuilder();
     }
 
     /// <summary>
@@ -60,7 +62,8 @@ public class DetailsPanel
         if (node.Children.Count > 0 || node.NestedClasses.Count > 0)
         {
             grid.AddRow("[bold]Subtree:[/]");
-            AddSubtree(grid, node, "");
+            var subtreeMarkup = BuildSubtreeMarkup(node);
+            grid.AddRow(subtreeMarkup);
             grid.AddEmptyRow();
         }
 
@@ -89,45 +92,58 @@ public class DetailsPanel
                 Overflow = Overflow.Fold
             };
             grid.AddRow(pathText);
+
+            // Add file size below path
+            if (!string.IsNullOrEmpty(classInfo.FilePath) && File.Exists(classInfo.FilePath))
+            {
+                var fileInfo = new FileInfo(classInfo.FilePath);
+                var fileSize = FormatFileSize(fileInfo.Length);
+                grid.AddRow($"[dim]{fileSize}[/]");
+            }
         }
 
         return grid;
     }
 
     /// <summary>
-    /// Add subtree to the details grid
+    /// Build subtree markup using Spectre.Console Tree
     /// </summary>
-    private void AddSubtree(Grid grid, InheritanceNode node, string indent)
+    private IRenderable BuildSubtreeMarkup(InheritanceNode node)
     {
-        var allChildren = CombineChildren(node);
+        // Build a tree starting from this node's children
+        var tempTree = new Tree("");
+        BuildSubtreeRecursive(tempTree, node);
 
-        foreach (var (child, isNested) in allChildren)
+        return tempTree;
+    }
+
+    /// <summary>
+    /// Recursively build subtree structure
+    /// </summary>
+    private void BuildSubtreeRecursive(IHasTreeNodes parentTree, InheritanceNode parentNode)
+    {
+        // Add inherited children
+        foreach (var child in parentNode.Children)
         {
             var color = TreeLineBuilder.GetClassColor(child.ClassInfo);
             var modifier = TreeLineBuilder.FormatModifier(child.ClassInfo.IsAbstract);
-            var nestedIndicator = TreeLineBuilder.FormatNestedIndicator(isNested);
+            var label = $"[{color}]{child.ClassInfo.Name}[/]{modifier}";
 
-            grid.AddRow($"{indent}├─ [{color}]{child.ClassInfo.Name}[/]{modifier}{nestedIndicator}");
-
-            // Recursively add children up to a reasonable depth
-            if ((child.Children.Count > 0 || child.NestedClasses.Count > 0) && indent.Length < MaxSubtreeDepth)
-            {
-                AddSubtree(grid, child, indent + "│  ");
-            }
+            var childTreeNode = parentTree.AddNode(label);
+            BuildSubtreeRecursive(childTreeNode, child);
         }
-    }
 
-    private static List<(InheritanceNode node, bool isNested)> CombineChildren(InheritanceNode node)
-    {
-        var allChildren = new List<(InheritanceNode node, bool isNested)>();
+        // Add nested classes
+        foreach (var nested in parentNode.NestedClasses)
+        {
+            var color = TreeLineBuilder.GetClassColor(nested.ClassInfo);
+            var modifier = TreeLineBuilder.FormatModifier(nested.ClassInfo.IsAbstract);
+            var nestedIndicator = TreeLineBuilder.FormatNestedIndicator(true);
+            var label = $"[{color}]{nested.ClassInfo.Name}[/]{modifier}{nestedIndicator}";
 
-        foreach (var child in node.Children)
-            allChildren.Add((child, false));
-
-        foreach (var nested in node.NestedClasses)
-            allChildren.Add((nested, true));
-
-        return allChildren;
+            var nestedTreeNode = parentTree.AddNode(label);
+            BuildSubtreeRecursive(nestedTreeNode, nested);
+        }
     }
 
     /// <summary>
@@ -160,4 +176,21 @@ public class DetailsPanel
         }
     }
 
+    /// <summary>
+    /// Format file size in human-readable format
+    /// </summary>
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len /= 1024;
+        }
+
+        return $"{len:0.##} {sizes[order]}";
+    }
 }
