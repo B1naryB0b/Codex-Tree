@@ -51,7 +51,17 @@ public class TreeLineBuilder
         var badges = BuildModifierBadges(node.ClassInfo);
         var nestedIndicator = FormatNestedIndicator(isNested);
 
-        var label = $"[[{color}]]{node.ClassInfo.Name}[[/]]{badges}{nestedIndicator}";
+        // Build label with optional color markup
+        string label;
+        if (!string.IsNullOrEmpty(color))
+        {
+            label = $"[[{color}]]{node.ClassInfo.Name}[[/]]{badges}{nestedIndicator}";
+        }
+        else
+        {
+            // No color markup - use default text color
+            label = $"{node.ClassInfo.Name}{badges}{nestedIndicator}";
+        }
 
         // Wrap in selection styling if selected
         if (isSelected)
@@ -83,7 +93,7 @@ public class TreeLineBuilder
         if (classInfo.IsAbstract) return "yellow";
         if (classInfo.IsSealed) return "blue";
         if (classInfo.IsStatic) return "cyan";
-        return "white";
+        return ""; // No color markup for normal classes - use default text color
     }
 
     /// <summary>

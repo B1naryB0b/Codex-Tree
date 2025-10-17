@@ -17,6 +17,7 @@ public class TreeRenderer
     private readonly TreeLineBuilder _lineBuilder;
     private readonly FilePreview _filePreview;
     private readonly InputHandler _inputHandler;
+    private readonly ImageExporter _imageExporter;
     private DetailsPanel _detailsPanel;
 
     public TreeRenderer()
@@ -25,6 +26,7 @@ public class TreeRenderer
         _filePreview = new FilePreview();
         _detailsPanel = new DetailsPanel();
         _inputHandler = new InputHandler(_filePreview);
+        _imageExporter = new ImageExporter();
     }
 
     /// <summary>
@@ -80,8 +82,78 @@ public class TreeRenderer
                 AnsiConsole.Write(statsGrid);
             }
 
-            if (!_inputHandler.HandleInput(ref selectedIndex, ref previewScrollOffset, ref showPreview, treeLines.Count, nodeList))
+            var result = _inputHandler.HandleInput(ref selectedIndex, ref previewScrollOffset, ref showPreview, treeLines.Count, nodeList, out bool exportRequested);
+
+            if (exportRequested)
+            {
+                HandleExportRequest(treeLines, title);
+            }
+
+            if (result == false)
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Handle export request - prompt user and save image
+    /// </summary>
+    private void HandleExportRequest(List<string> treeLines, string title)
+    {
+        try
+        {
+            AnsiConsole.WriteLine();
+
+            // Ask if user wants to customize settings
+            var customize = AnsiConsole.Confirm("Customize export settings?", false);
+
+            ImageExporter.ExportConfig config;
+            if (customize)
+            {
+                config = ExportConfigBuilder.BuildConfig(title);
+            }
+            else
+            {
+                config = new ImageExporter.ExportConfig
+                {
+                    Title = title,
+                    IncludeHeader = true
+                };
+            }
+
+            AnsiConsole.WriteLine();
+
+            // Prompt for filename
+            var filename = AnsiConsole.Prompt(
+                new TextPrompt<string>("[cyan]Enter filename for export (without extension):[/]")
+                    .DefaultValue("inheritance-tree")
+                    .ValidationErrorMessage("[red]Invalid filename[/]")
+            );
+
+            // Add .png extension if not present
+            if (!filename.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            {
+                filename += ".png";
+            }
+
+            AnsiConsole.Status()
+                .Start("Exporting image...", ctx =>
+                {
+                    ctx.Spinner(Spinner.Known.Dots);
+                    ctx.SpinnerStyle(Style.Parse("green"));
+                    _imageExporter.ExportToPng(treeLines, filename, config);
+                });
+
+            AnsiConsole.MarkupLine($"[green]Image exported successfully to:[/] [white]{Path.GetFullPath(filename)}[/]");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[dim]Press any key to continue...[/]");
+            Console.ReadKey(true);
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error exporting image: {ex.Message}[/]");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[dim]Press any key to continue...[/]");
+            Console.ReadKey(true);
         }
     }
 
@@ -173,7 +245,7 @@ public class TreeRenderer
 
     private Table CreateTableWithDetails(string title, int maxTreeWidth, StringBuilder treeText, InheritanceNode node)
     {
-        var table = CreateBaseTable(title, "Up/Down keys to navigate, Enter to toggle preview, Q to quit [green](Details)[/]");
+        var table = CreateBaseTable(title, "Up/Down: navigate | Enter: preview | S: save image | Q: quit [green](Details)[/]");
         var detailsGrid = _detailsPanel.BuildDetails(node);
 
         table.AddColumn(new TableColumn("[green]Inheritance Tree[/]").Width(maxTreeWidth).NoWrap());
@@ -185,7 +257,7 @@ public class TreeRenderer
 
     private Table CreateTableWithPreview(string title, int maxTreeWidth, StringBuilder treeText, InheritanceNode node, int previewScrollOffset)
     {
-        var table = CreateBaseTable(title, "Up/Down keys to scroll preview, Enter to toggle details, Q to quit [yellow](Preview)[/]");
+        var table = CreateBaseTable(title, "Up/Down: scroll preview | Enter: details | S: save image | Q: quit [yellow](Preview)[/]");
         var previewText = _filePreview.BuildPreview(node, previewScrollOffset);
 
         table.AddColumn(new TableColumn("[green]Inheritance Tree[/]").Width(maxTreeWidth).NoWrap());

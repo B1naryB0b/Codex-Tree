@@ -17,10 +17,11 @@ public class InputHandler
 
     /// <summary>
     /// Handle keyboard input and update navigation state
-    /// Returns false if user wants to exit
+    /// Returns false if user wants to exit, true if normal navigation, null if export requested
     /// </summary>
-    public bool HandleInput(ref int selectedIndex, ref int previewScrollOffset, ref bool showPreview, int totalLines, List<InheritanceNode> nodeList)
+    public bool? HandleInput(ref int selectedIndex, ref int previewScrollOffset, ref bool showPreview, int totalLines, List<InheritanceNode> nodeList, out bool exportRequested)
     {
+        exportRequested = false;
         var key = Console.ReadKey(true);
 
         switch (key.Key)
@@ -36,6 +37,10 @@ public class InputHandler
             case ConsoleKey.Enter:
                 showPreview = !showPreview;
                 previewScrollOffset = 0; // Reset preview scroll when toggling
+                break;
+
+            case ConsoleKey.S:
+                exportRequested = true;
                 break;
 
             case ConsoleKey.Q:

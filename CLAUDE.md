@@ -124,3 +124,4 @@ Program.cs orchestrates:
 
 ### Development Workflow
 - There is no need to run build commands - user runs tests manually
+- Theres no need for you to run build commands, I'll have to run them when testing anyway

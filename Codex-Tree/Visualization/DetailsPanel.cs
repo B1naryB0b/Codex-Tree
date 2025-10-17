@@ -97,7 +97,6 @@ public class DetailsPanel
         }
 
         // Path pinned to bottom
-        grid.AddRow("─".PadRight(MaxPathWidth, '─')); // Separator line
         var displayPath = GetRelativePath(classInfo.FilePath);
         if (!string.IsNullOrEmpty(displayPath))
         {
