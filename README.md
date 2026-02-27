@@ -2,7 +2,7 @@
 
 A cross-language class inheritance visualizer for the terminal. Point it at a codebase, navigate the hierarchy interactively, inspect class details, preview source files, and export the tree as a PNG.
 
-> Please note LLMs were used in the development of this tool as it was mainly built for helping me dig around the inheritance heirarchy in unreal engine's source code
+> Please note LLMs were used in the development of this tool as it was mainly built for helping me dig around the inheritance heirarchy in unreal engine's source code, not as a long-term project
 
 <table>
   <tr>
